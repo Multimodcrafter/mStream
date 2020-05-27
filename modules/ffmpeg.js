@@ -39,8 +39,11 @@ exports.setup = (mstream, program) => {
       ffmpeg.setFfprobePath(ffprobePath);
 
       mstream.get("/transcode/*", (req, res) => {
-        const pathInfo = program.getVPathInfo(req.params[0], req.user);
-        if (!pathInfo) { return res.json({ "success": false }); }
+        const pathInfo = program.getVPathInfo(req.params[0]);
+        if (pathInfo === false) {
+          res.json({ "success": false });
+          return;
+        }
 
         // Stream audio data
         if (req.method === 'GET') {
@@ -53,7 +56,7 @@ exports.setup = (mstream, program) => {
             .audioCodec(codecMap[program.transcode.defaultCodec].codec)
             .audioBitrate(program.transcode.defaultBitrate)
             .on('end', () => {
-              // console.log('file has been converted successfully');
+              // console.log('file has been converted succesfully');
             })
             .on('error', err => {
               winston.error('Transcoding Error!');

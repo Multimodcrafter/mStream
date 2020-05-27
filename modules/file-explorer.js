@@ -20,9 +20,12 @@ const masterFileTypes = {
 exports.setup = function(mstream, program) {
 
   function getPathInfoOrThrow(req, pathString) {
-    const pathInfo = program.getVPathInfo(pathString, req.user);
+    const pathInfo = program.getVPathInfo(pathString);
     if (pathInfo === false) {
       throw {code: 500, json: { error: "Could not find file" }};
+    }
+    if (!req.user.vpaths.includes(pathInfo.vpath)) {
+      throw {code: 500, json: { error: "Access Denied" }};
     }
     return pathInfo;
   }
@@ -55,8 +58,17 @@ exports.setup = function(mstream, program) {
     }
 
     // Get full path
-    const pathInfo = program.getVPathInfo(req.body.directory, req.user);
-    if (!pathInfo) { return res.status(500).json({ error: "Could not find file" }); }
+    const pathInfo = program.getVPathInfo(req.body.directory);
+    if (pathInfo == false) {
+      res.status(500).json({ error: "Could not find file" });
+      return;
+    }
+
+    // Make sure the user has access to the given vpath and that the vpath exists
+    if (!req.user.vpaths.includes(pathInfo.vpath)) {
+      res.status(500).json({ error: "Access Denied" });
+      return;
+    }
 
     // Make sure it's a directory
     if (!fs.statSync(pathInfo.fullPath).isDirectory()) {
@@ -109,10 +121,12 @@ exports.setup = function(mstream, program) {
     if (!req.headers['data-location']) {
       return res.status(500).json({ error: 'No Location Provided' });
     }
-    const pathInfo = program.getVPathInfo(req.headers['data-location'], req.user);
-    if (!pathInfo) { return res.status(500).json({ error: 'Location could not be parsed' }); }
+    const pathInfo = program.getVPathInfo(req.headers['data-location']);
+    if (!pathInfo.fullPath) {
+      return res.status(500).json({ error: 'Location could not be parsed' });
+    }
 
-    // run make directory
+    // TODO: Check if path exits, if not make the path
     try {
       mkdirp.sync(pathInfo.fullPath);
     } catch (err) {
@@ -177,8 +191,18 @@ exports.setup = function(mstream, program) {
       return res.json({ path: "/", contents: directories });
     }
 
-    const pathInfo = program.getVPathInfo(req.body.dir, req.user);
-    if (!pathInfo) { return res.status(500).json({ error: "Could not find file" }); }
+    const directory = req.body.dir;
+    const pathInfo = program.getVPathInfo(directory);
+    if (pathInfo == false) {
+      res.status(500).json({ error: "Could not find file" });
+      return;
+    }
+
+    // Make sure the user has access to the given vpath and that the vpath exists
+    if (!req.user.vpaths.includes(pathInfo.vpath)) {
+      res.status(500).json({ error: "Access Denied" });
+      return;
+    }
 
     // Make sure it's a directory
     if (!fs.statSync(pathInfo.fullPath).isDirectory()) {
@@ -225,7 +249,7 @@ exports.setup = function(mstream, program) {
     });
 
     // Format directory string for return value
-    let returnDirectory = req.body.dir.replace(/\\/g, "/");
+    let returnDirectory = directory.replace(/\\/g, "/");
     if (returnDirectory.slice(-1) !== "/") {
       returnDirectory += "/";
     }
@@ -235,12 +259,22 @@ exports.setup = function(mstream, program) {
   });
 
   mstream.post('/files/recursive-scan', function(req, res){
-    if (!req.body.dir) {
+    if(!req.body.dir) {
       return res.status(422).json({ error: "Missing Directory" });
     }
 
-    const pathInfo = program.getVPathInfo(req.body.dir, req.user);
-    if (!pathInfo) { return res.status(500).json({ error: "Could not parse directory" }); }
+    const directory = req.body.dir;
+    const pathInfo = program.getVPathInfo(directory);
+    if (pathInfo == false) {
+      res.status(500).json({ error: "Could not find file" });
+      return;
+    }
+
+    // Make sure the user has access to the given vpath and that the vpath exists
+    if (!req.user.vpaths.includes(pathInfo.vpath)) {
+      res.status(500).json({ error: "Access Denied" });
+      return;
+    }
 
     // Make sure it's a directory
     if (!fs.statSync(pathInfo.fullPath).isDirectory()) {

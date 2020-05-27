@@ -1027,7 +1027,7 @@ async function userLoop(loadJson) {
 }
 
 function editUser() {
-  console.log('NOT IMPLEMENTED');
+  console.log('NOT IMPLEMTEND');
   return Promise.resolve();
 }
 

@@ -18,8 +18,11 @@
     ```
     {
       locked: false,
-      totalFileCount: 150
+      totalFileCount: 150,
+      dbType: 'default'
     }
     ```
 
     `locked` will be true if a scan is in progress.  
+
+    `dbType` will either be `default` or `beets`
