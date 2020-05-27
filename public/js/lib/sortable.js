@@ -2,7 +2,6 @@
  * Sortable
  * @author	RubaXa   <trash@rubaxa.org>
  * @license MIT
- * https://unpkg.com/sortablejs@latest
  * v1.6
  */
 
