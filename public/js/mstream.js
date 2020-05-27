@@ -176,11 +176,7 @@ $(document).ready(function () {
       });
       myDropzone.removeFile(file);
     } else {
-      if (file.fullPath) {
-        file.directory = getFileExplorerPath() + file.fullPath.substring(0, file.fullPath.indexOf(file.name));
-      } else {
-        file.directory = getFileExplorerPath();
-      }
+      file.directory = getFileExplorerPath() + file.fullPath.substring(0, file.fullPath.indexOf(file.name));
     }
   });
 
