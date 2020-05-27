@@ -323,22 +323,20 @@ var VUEPLAYER = (function () {
     }
   });
 
-  if (document.getElementById("meta-box")) {
-    new Vue({
-      el: '#meta-box',
-      data: {
-        meta: MSTREAMPLAYER.playerStats.metadata
-      },
-      computed: {
-        albumArtPath: function () {
-          if (!this.meta['album-art']) {
-            return '/public/img/default.png';
-          }
-          return '/album-art/' + this.meta['album-art'] + '?token=' + MSTREAMAPI.currentServer.token;
+  new Vue({
+    el: '#meta-box',
+    data: {
+      meta: MSTREAMPLAYER.playerStats.metadata
+    },
+    computed: {
+      albumArtPath: function () {
+        if (!this.meta['album-art']) {
+          return '/public/img/default.png';
         }
+        return '/album-art/' + this.meta['album-art'] + '?token=' + MSTREAMAPI.currentServer.token;
       }
-    });
-  }
+    }
+  });
 
   // Button Events
   document.getElementById("progress-bar").addEventListener("click", function (event) {
