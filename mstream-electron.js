@@ -222,5 +222,11 @@ autoUpdater.on('update-available', (info) => {
     }
   };
 
+  trayTemplate[7] = {
+    label: 'Quit', click: function () {
+      autoUpdater.quitAndInstall();
+    }
+  };
+
   appIcon.setContextMenu(Menu.buildFromTemplate(trayTemplate));
 });
