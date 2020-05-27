@@ -48,7 +48,7 @@ exports.setup = function (program) {
       Joi.object({
         root: Joi.string().required()
       })
-    ).min(0),
+    ).min(1),
     users: Joi.object().pattern(
       Joi.string(),
       Joi.object({
