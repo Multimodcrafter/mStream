@@ -88,6 +88,7 @@ function pullFromDB() {
   });
 }
 
+
 function recursiveScan(dir) {
   let files;
   try {
@@ -149,7 +150,6 @@ function parseFile(thisSong) {
   }
 
   // Parse the file for metadata and store it in the DB
-  console.log(thisSong)
   return metadata.parseFile(thisSong, opt).then(thisMetadata => {
     return thisMetadata.common;
   }).catch(err => {
