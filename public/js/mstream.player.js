@@ -8,7 +8,8 @@ var MSTREAMPLAYER = (function () {
 
   mstreamModule.editSongMetadata = function (key, value, songIndex) {
     for (var i = 0, len = mstreamModule.playlist.length; i < len; i++) {
-      if ((mstreamModule.playlist[i].metadata && mstreamModule.playlist[i].metadata.hash === mstreamModule.playlist[songIndex].metadata.hash) || mstreamModule.playlist[i].filepath === mstreamModule.playlist[songIndex].filepath) {
+      if (mstreamModule.playlist[i].filepath === mstreamModule.playlist[songIndex].filepath) {
+        mstreamModule.positionCache.val = i;
         mstreamModule.playlist[i].metadata[key] = value;
       }
     }
@@ -165,7 +166,6 @@ var MSTREAMPLAYER = (function () {
 
 
   mstreamModule.goToSongAtPosition = function (position) {
-    console.log('GO GO GOG O')
     if (!mstreamModule.playlist[position]) {
       return false;
     }
