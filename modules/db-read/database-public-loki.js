@@ -11,27 +11,6 @@ var userDataDb;
 
 var fileCollection;
 var playlistCollection;
-var userMetadataCollection;
-
-// Default Functions for joining
-const mapFunDefault = function(left, right) {
-  return {
-    artist: left.artist,
-    album: left.album,
-    hash: left.hash,
-    track: left.track,
-    title: left.title,
-    year: left.year,
-    'album-art': left.aaFile,
-    filepath: left.filepath,
-    rating: right.rating,
-    vpath: left.vpath
-  };
-};
-
-const rightFunDefault = function(rightData) {
-  return rightData.hash + '-' + rightData.user;
-};
 
 function loadDB() {
   filesDB.loadDatabase({}, err => {
@@ -55,12 +34,6 @@ function loadDB() {
     if (!playlistCollection) {
       // first time run so add and configure collection with some arbitrary options
       playlistCollection = userDataDb.addCollection("playlists");
-    }
-
-    // Initialize user metadata collection (for song ratings, playback stats, etc)
-    userMetadataCollection = userDataDb.getCollection('user-metadata');
-    if (!userMetadataCollection) {
-      userMetadataCollection = userDataDb.addCollection("user-metadata");
     }
   });
 }
@@ -114,15 +87,9 @@ exports.setup = function (mstream, program) {
       res.json({ "filepath": req.body.filepath, "metadata": {} });
       return;
     }
-    
-    const leftFun = function(leftData) {
-      return leftData.hash + '-' + req.user.username;
-    };
 
-    const result = fileCollection.chain().find({ '$and': [{'filepath': pathInfo.relativePath}, {'vpath': pathInfo.vpath}] }, true)
-      .eqJoin(userMetadataCollection.chain(), leftFun, rightFunDefault, mapFunDefault).data();
-
-    if (!result || !result[0]) {
+    const result = fileCollection.findOne({ '$and': [{'filepath': pathInfo.relativePath}, {'vpath': pathInfo.vpath}] });
+    if (!result) {
       res.json({ "filepath": req.body.filepath, "metadata": {} });
       return;
     }
@@ -130,14 +97,14 @@ exports.setup = function (mstream, program) {
     res.json({
       "filepath": req.body.filepath,
       "metadata": {
-        "artist": result[0].artist ? result[0].artist : null,
-        "hash": result[0].hash ? result[0].hash : null,
-        "album": result[0].album ? result[0].album : null,
-        "track": result[0].track ? result[0].track : null,
-        "title": result[0].title ? result[0].title : null,
-        "year": result[0].year ? result[0].year : null,
-        "album-art": result[0].aaFile ? result[0].aaFile : null,
-        "rating": result[0].rating ? result[0].rating : null
+        "artist": result.artist ? result.artist : null,
+        "hash": result.hash ? result.hash : null,
+        "album": result.album ? result.album : null,
+        "track": result.track ? result.track : null,
+        "title": result.title ? result.title : null,
+        "year": result.year ? result.year : null,
+        "album-art": result.aaFile ? result.aaFile : null,
+        "rating": result.rating ? result.rating : null
       }
     });
   });
@@ -154,7 +121,8 @@ exports.setup = function (mstream, program) {
     playlistCollection.insert({
       name: req.body.playlist,
       filepath: req.body.song,
-      user: req.user.username
+      user: req.user.username,
+      hide: false
     });
 
     res.json({ success: true });
@@ -207,7 +175,8 @@ exports.setup = function (mstream, program) {
       playlistCollection.insert({
         name: title,
         filepath: song,
-        user: req.user.username
+        user: req.user.username,
+        hide: false
       });
     }
 
@@ -263,23 +232,17 @@ exports.setup = function (mstream, program) {
       let metadata = {};
 
       if (fileCollection) {
-        const leftFun = function(leftData) {
-          return leftData.hash + '-' + req.user.username;
-        };
-        
-        const result = fileCollection.chain().find({ '$and': [{'filepath': pathInfo.relativePath}, { 'vpath': pathInfo.vpath }] }, true)
-          .eqJoin(userMetadataCollection.chain(), leftFun, rightFunDefault, mapFunDefault).data();
-
-        if (result && result[0]) {
+        const result = fileCollection.findOne({ '$and': [{'filepath': pathInfo.relativePath}, { 'vpath': pathInfo.vpath }] });
+        if (result) {
           metadata = {
-            "artist": result[0].artist ? result[0].artist : null,
-            "hash": result[0].hash ? result[0].hash : null,
-            "album": result[0].album ? result[0].album : null,
-            "track": result[0].track ? result[0].track : null,
-            "title": result[0].title ? result[0].title : null,
-            "year": result[0].year ? result[0].year : null,
-            "album-art": result[0].aaFile ? result[0].aaFile : null,
-            "rating": result[0].rating ? result[0].rating : null
+            "artist": result.artist ? result.artist : null,
+            "hash": result.hash ? result.hash : null,
+            "album": result.album ? result.album : null,
+            "track": result.track ? result.track : null,
+            "title": result.title ? result.title : null,
+            "year": result.year ? result.year : null,
+            "album-art": result.aaFile ? result.aaFile : null,
+            "rating": result.rating ? result.rating : null
           };
         }
       }
@@ -419,14 +382,10 @@ exports.setup = function (mstream, program) {
       }
 
       let artistClause;
-      if (req.body.artist) {
+      if(req.body.artist) {
         artistClause = {'artist': { '$eq':  String(req.body.artist) }}
       }
 
-      const leftFun = function(leftData) {
-        return leftData.hash + '-' + req.user.username;
-      };
-  
       const album = req.body.album ? String(req.body.album) : null;
       const results = fileCollection.chain().find({
         '$and': [
@@ -434,7 +393,7 @@ exports.setup = function (mstream, program) {
           {'album': { '$eq': album }},
           artistClause
         ]
-      }).compoundsort(['track','filepath']).eqJoin(userMetadataCollection.chain(), leftFun, rightFunDefault, mapFunDefault).data();
+      }).compoundsort(['track','filepath']).data();
 
       for (let row of results) {
         songs.push({
@@ -461,10 +420,11 @@ exports.setup = function (mstream, program) {
       res.status(500).json({ error: 'Bad input data' });
     }
 
+    const rating = req.body.rating;
     const pathInfo = program.getVPathInfo(req.body.filepath);
     if (!pathInfo) { return res.status(500).json({ error: 'Could not find file' }); }
 
-    if (!userMetadataCollection || !fileCollection) {
+    if (!fileCollection) {
       res.status(500).json({ error: 'No DB' });
       return;
     }
@@ -475,21 +435,11 @@ exports.setup = function (mstream, program) {
       return;
     }
 
-    const result2 = userMetadataCollection.findOne({ '$and':[{ 'hash': result.hash}, { 'user': req.user.username }] });
-    if (!result2) {
-      userMetadataCollection.insert({
-        user: req.user.username,
-        hash: result.hash,
-        rating: req.body.rating
-      });
-    } else {
-      result2.rating = req.body.rating;
-      userMetadataCollection.update(result2);
-    }
+    result.rating = rating;
+    fileCollection.update(result);
+    res.json({ success: true });
 
-    res.json({});
-
-    userDataDb.saveDatabase(err => {
+    filesDB.saveDatabase(err => {
       if (err) {
         winston.error(`DB Save Error : ${err}`);
       }
@@ -532,8 +482,9 @@ exports.setup = function (mstream, program) {
       ]};
     }
 
-    // Get song list
-    const count = fileCollection.count();
+    // Print list
+    const results = fileCollection.find(orClause);
+    const count = results.length;
     if (count === 0) {
       res.status(444).json({ error: 'No songs that match criteria' });
       return;
@@ -546,16 +497,11 @@ exports.setup = function (mstream, program) {
     const returnThis = { songs: [], ignoreList: [] };
 
     let randomNumber = Math.floor(Math.random() * count);
+    let randomSong = results[randomNumber];
     while (ignoreList.indexOf(randomNumber) > -1) {
       randomNumber = Math.floor(Math.random() * count);
+      randomSong = results[randomNumber];
     }
-
-    const leftFun = function(leftData) {
-      return leftData.hash + '-' + req.user.username;
-    };
-
-    const results = fileCollection.chain().offset(randomNumber).limit(1).eqJoin(userMetadataCollection.chain(), leftFun, rightFunDefault, mapFunDefault).data();
-    const randomSong = results[0];
 
     returnThis.songs.push({
       "filepath": fe.join(randomSong.vpath, randomSong.filepath).replace(/\\/g, '/'),
@@ -580,10 +526,10 @@ exports.setup = function (mstream, program) {
     // Get user inputs
     const artists = searchByX(req, 'artist');
     const albums = searchByX(req, 'album');
-    const files = searchByX(req, 'filepath');
+    // const files = searchByX(req, 'filepath');
     // const title = searchByX(req, 'title', 'filepath');
 
-    res.json({artists, albums, files });
+    res.json({artists, albums });
   });
 
   function searchByX(req, searchCol, resCol) {
@@ -643,30 +589,7 @@ exports.setup = function (mstream, program) {
       }
     }
 
-    var mapFun = function(left, right) {
-      return {
-        artist: right.artist,
-        album: right.album,
-        hash: right.hash,
-        track: right.track,
-        title: right.title,
-        year: right.year,
-        'album-art': right.aaFile,
-        filepath: right.filepath,
-        rating: left.rating,
-        vpath: right.vpath
-      };
-    };
-    
-    var leftFun = function(leftData) {
-      return leftData.hash + '-' + leftData.user;
-    };
-    
-    var rightFun = function(rightData) {
-      return rightData.hash + '-' + req.user.username;
-    };
-
-    const results = userMetadataCollection.chain().eqJoin(fileCollection.chain(), leftFun, rightFun, mapFun).find({
+    const results = fileCollection.chain().find({
       '$and': [
         orClause,
         { 'rating': { '$gt': 0 } }
@@ -714,16 +637,12 @@ exports.setup = function (mstream, program) {
       }
     }
 
-    const leftFun = function(leftData) {
-      return leftData.hash + '-' + req.user.username;
-    };
-
     const results = fileCollection.chain().find({
       '$and': [
         orClause, 
         { 'ts': { '$gt': 0 } }
       ]
-    }).limit(limit).simplesort('ts', true).eqJoin(userMetadataCollection.chain(), leftFun, rightFunDefault, mapFunDefault).data();
+    }).simplesort('ts', true).limit(limit).data();
 
     for (let row of results) {
       songs.push({
