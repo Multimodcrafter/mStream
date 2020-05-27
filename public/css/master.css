@@ -568,7 +568,8 @@ h3 {
 }
 
 .fileplaylist-image{
-  height: 25px;
+  height: 21px;
+  margin-right: 5px;
 }
 
 .item-text{
