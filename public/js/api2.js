@@ -53,7 +53,7 @@ var MSTREAMAPI = (function () {
     makePOSTRequest('/fileplaylist/loadpaths', { path }, callback);
   }
 
-  mstreamModule.recursiveScan = function (directory, callback) {
+  mstreamModule.recursiveScan = function (directory, filetypes, callback) {
     makePOSTRequest('/files/recursive-scan', { dir: directory }, callback);
   }
 
