@@ -9,7 +9,7 @@ const codecMap = {
   'aac': 'aac'
 };
 
-exports.setup = (mstream, program) => {
+exports.setup = function (mstream, program) {
   const platform = ffbinaries.detectPlatform();
 
   winston.info('Checking ffmpeg...');
@@ -29,7 +29,7 @@ exports.setup = (mstream, program) => {
       ffmpeg.setFfmpegPath(ffmpegPath);
       ffmpeg.setFfprobePath(ffprobePath);
 
-      mstream.get("/transcode/*", (req, res) => {
+      mstream.get("/transcode/*", function (req, res) {
         const pathInfo = program.getVPathInfo(req.params[0]);
         if (pathInfo === false) {
           res.json({ "success": false });
@@ -41,10 +41,10 @@ exports.setup = (mstream, program) => {
           .format(program.transcode.defaultCodec)
           .audioCodec(codecMap[program.transcode.defaultCodec])
           .audioBitrate(program.transcode.defaultBitrate)
-          .on('end', () => {
+          .on('end', function () {
             // console.log('file has been converted succesfully');
           })
-          .on('error', err => {
+          .on('error', function (err) {
             winston.error('Transcoding Error!');
             console.log(err);
           })
