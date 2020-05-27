@@ -24,12 +24,12 @@ var MSTREAMPLAYER = (function () {
     var localPlayerObject = getCurrentPlayer();
     var otherPlayerObject = getOtherPlayer();
 
-    if (localPlayerObject && localPlayerObject.playerObject) {
+    if (localPlayerObject.playerObject) {
       localPlayerObject.playerObject.volume(newVolume / 100);
     }
 
-    if (otherPlayerObject && otherPlayerObject.playerObject) {
-      otherPlayerObject.playerObject.volume(newVolume / 100);
+    if (otherPlayerObject.playerObject) {
+      localPlayerObject.playerObject.volume(newVolume / 100);
     }
   }
 
