@@ -207,7 +207,7 @@ $(document).ready(function () {
         timeout: 3500
       });
       if (programState[0].state === 'fileExplorer') {
-        senddir();
+        senddir(fileExplorerArray);
       }
     } else if (successCount === 0) {
       // do nothing
@@ -219,7 +219,7 @@ $(document).ready(function () {
       });
 
       if (programState[0].state === 'fileExplorer') {
-        senddir();
+        senddir(fileExplorerArray);
       }
     }
 
@@ -248,6 +248,8 @@ $(document).ready(function () {
       });
     }
   }
+
+  var programState = [];
 
   // Auto Focus
   Vue.directive('focus', {
@@ -380,8 +382,6 @@ $(document).ready(function () {
   var fileExplorerArray = [];
   // Stores an array of searchable objects
   var currentBrowsingList = [];
-  // This variable tracks the state of the explorer column
-  var programState = [];
 
   ////////////////////////////////   Administrative stuff
   // when you click an mp3, add it to now playing
@@ -430,7 +430,7 @@ $(document).ready(function () {
     resetPanel('File Explorer', 'scrollBoxHeight1');
     programState = [{
       state: 'fileExplorer'
-    }];
+    }]
     $('#directory_bar').show();
 
     // Reset file explorer vars
@@ -438,15 +438,10 @@ $(document).ready(function () {
 
     if (MSTREAMAPI.currentServer.vpaths && MSTREAMAPI.currentServer.vpaths.length === 1) {
       fileExplorerArray.push(MSTREAMAPI.currentServer.vpaths[0]);
-      programState = [{
-        state: 'fileExplorer',
-        previousScroll: 0,
-        previousSearch: ''
-      }];
     }
 
     //send this directory to be parsed and displayed
-    senddir();
+    senddir(fileExplorerArray);
   }
 
   // Load up the file explorer
@@ -454,24 +449,14 @@ $(document).ready(function () {
 
   // when you click on a directory, go to that directory
   $("#filelist").on('click', 'div.dirz', function () {
-    fileExplorerArray.push($(this).data("directory"));    
-    programState.push({
-      state: 'fileExplorer',
-      previousScroll: document.getElementById('filelist').scrollTop,
-      previousSearch: $('#search_folders').val()
-    });
-    senddir();
+    var newArray = fileExplorerArray.concat($(this).data("directory"));
+    senddir(newArray);
   });
 
   // when you click on a playlist, go to that playlist
   $("#filelist").on('click', 'div.fileplaylistz', function () {
-    fileExplorerArray.push($(this).data("directory"));
-    programState.push({
-      state: 'fileExplorer',
-      previousScroll: document.getElementById('filelist').scrollTop,
-      previousSearch: $('#search_folders').val()
-    });
-    var directoryString = getFileExplorerPath(fileExplorerArray);
+    var newArray = fileExplorerArray.concat($(this).data("directory"));
+    var directoryString = getFileExplorerPath(newArray);
 
     $('.directoryName').html('/' + directoryString);
     $('#filelist').html('<div class="loading-screen"><svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><circle class="spinner-path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg></div>');
@@ -482,39 +467,49 @@ $(document).ready(function () {
         return;
       }
 
+      fileExplorerArray = newArray;
       printdir(response);
     });
   });
 
   // when you click the back directory
   $(".backButton").on('click', function () {
-    if (programState.length < 2) {
-      return;
+    // Handle file Explorer
+    if (programState[0].state === 'fileExplorer') {
+      if (fileExplorerArray.length != 0) {
+        // remove the last item in the array
+        var newArray = [];
+        for (var i = 0; i < fileExplorerArray.length - 1; i++) {
+          newArray.push(fileExplorerArray[i]);
+        }
+
+        senddir(newArray);
+      }
+    } else {
+      // Handle all other cases
+      if (programState.length < 2) {
+        return;
+      }
+
+      programState.pop();
+      var backState = programState[programState.length - 1];
+
+      if (backState.state === 'allPlaylists') {
+        getAllPlaylists();
+      } else if (backState.state === 'allAlbums') {
+        getAllAlbums();
+      } else if (backState.state === 'allArtists') {
+        getAllArtists();
+      } else if (backState.state === 'artist') {
+        getArtistsAlbums(backState.name);
+      }
     }
-
-    var thisState = programState.pop();
-    var backState = programState[programState.length - 1];
-
-    console.log(thisState)
-
-    if (backState.state === 'allPlaylists') {
-      getAllPlaylists(thisState);
-    } else if (backState.state === 'allAlbums') {
-      getAllAlbums(thisState);
-    } else if (backState.state === 'allArtists') {
-      getAllArtists(thisState);
-    } else if (backState.state === 'artist') {
-      getArtistsAlbums(backState.name, thisState);
-    } else if (backState.state === 'fileExplorer') {
-      fileExplorerArray.pop();
-      senddir(thisState);
-    }  
   });
 
   // send a new directory to be parsed.
-  function senddir(previousState) {
+  function senddir(newArray) {
     // Construct the directory string
-    var directoryString = getFileExplorerPath(fileExplorerArray);
+    var directoryString = getFileExplorerPath(newArray);
 
     $('.directoryName').html('/' + directoryString);
     $('#filelist').html('<div class="loading-screen"><svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><circle class="spinner-path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg></div>');
@@ -525,15 +520,16 @@ $(document).ready(function () {
         return;
       }
 
+      fileExplorerArray = newArray;
       // Set any directory views
       // hand this data off to be printed on the page
-      printdir(response, previousState);
+      printdir(response);
     });
   }
 
 
   // function that will recieve JSON array of a directory listing.  It will then make a list of the directory and tack on classes for functionality
-  function printdir(response, previousState) {
+  function printdir(response) {
     currentBrowsingList = response.contents;
 
     // clear the list
@@ -557,14 +553,6 @@ $(document).ready(function () {
 
     // Post the html to the filelist div
     $('#filelist').html(filelist);
-
-    if (previousState && previousState.previousScroll) {
-      $('#filelist').scrollTop(previousState.previousScroll);
-    }
-
-    if (previousState && previousState.previousSearch) {
-      $('#search_folders').val(previousState.previousSearch).trigger('change');
-    }
   }
 
   // when you click 'add directory', add entire directory to the playlist
@@ -668,9 +656,6 @@ $(document).ready(function () {
   $("#filelist").on('click', '.addFileplaylist', function () {
     var playlistPath = getDirectoryString($(this));
     MSTREAMAPI.loadFileplaylistPaths(playlistPath, function(res, err){
-      if (err !== false) {
-        return boilerplateFailure(res, err);        
-      }
       addAllSongs(res);
     });
   });
@@ -802,7 +787,7 @@ $(document).ready(function () {
     getAllPlaylists();
   });
 
-  function getAllPlaylists(previousState) {
+  function getAllPlaylists() {
     $('ul.left-nav-menu li').removeClass('selected');
     $('.get_all_playlists').addClass('selected');
     resetPanel('Playlists', 'scrollBoxHeight1');
@@ -811,7 +796,7 @@ $(document).ready(function () {
 
     programState = [{
       state: 'allPlaylists'
-    }];
+    }]
 
     MSTREAMAPI.getAllPlaylists(function (response, error) {
       if (error !== false) {
@@ -831,14 +816,6 @@ $(document).ready(function () {
       });
       // Add playlists to the left panel
       $('#filelist').html(playlists);
-
-      if (previousState && previousState.previousScroll) {
-        $('#filelist').scrollTop(previousState.previousScroll);
-      }
-  
-      if (previousState && previousState.previousSearch) {
-        $('#search_folders').val(previousState.previousSearch).trigger('change');
-      }
     });
   }
 
@@ -889,16 +866,13 @@ $(document).ready(function () {
     var name = $(this).html();
     $('.directoryName').html('Playlist: ' + name);
     $('#filelist').html('<div class="loading-screen"><svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><circle class="spinner-path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg></div>');
+    $('#search_folders').val('');
     currentBrowsingList = [];
 
     programState.push({
       state: 'playlist',
-      name: playlistname,
-      previousScroll: document.getElementById('filelist').scrollTop,
-      previousSearch: $('#search_folders').val()
-    });
-    $('#search_folders').val('');
-
+      name: playlistname
+    })
 
     MSTREAMAPI.loadPlaylist(playlistname, function (response, error) {
       if (error !== false) {
@@ -1086,7 +1060,7 @@ $(document).ready(function () {
     getAllAlbums();
   });
 
-  function getAllAlbums(previousState) {
+  function getAllAlbums() {
     $('ul.left-nav-menu li').removeClass('selected');
     $('.get_all_albums').addClass('selected');
     resetPanel('Albums', 'scrollBoxHeight1');
@@ -1117,14 +1091,6 @@ $(document).ready(function () {
       });
 
       $('#filelist').html(albums);
-      if (previousState && previousState.previousScroll) {
-        $('#filelist').scrollTop(previousState.previousScroll);
-      }
-  
-      if (previousState && previousState.previousSearch) {
-        $('#search_folders').val(previousState.previousSearch).trigger('change');
-      }
-
       // update lazy load plugin
       ll.update();
     });
@@ -1139,6 +1105,7 @@ $(document).ready(function () {
   });
 
   function getAlbumSongs(album, artist) {
+    $('#search_folders').val('');
     $('.directoryName').html('Album: ' + album);
     //clear the list
     $('#filelist').html('<div class="loading-screen"><svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><circle class="spinner-path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg></div>');
@@ -1146,12 +1113,8 @@ $(document).ready(function () {
 
     programState.push({
       state: 'album',
-      name: album,
-      previousScroll: document.getElementById('filelist').scrollTop,
-      previousSearch: $('#search_folders').val()
-    });
-
-    $('#search_folders').val('');
+      name: album
+    })
 
     MSTREAMAPI.albumSongs(album, artist, function (response, error) {
       if (error !== false) {
@@ -1180,7 +1143,7 @@ $(document).ready(function () {
     getAllArtists();
   });
 
-  function getAllArtists(previousState) {
+  function getAllArtists() {
     $('ul.left-nav-menu li').removeClass('selected');
     $('.get_all_artists').addClass('selected');
     resetPanel('Artists', 'scrollBoxHeight1');
@@ -1189,7 +1152,7 @@ $(document).ready(function () {
 
     programState = [{
       state: 'allArtists'
-    }];
+    }]
 
     MSTREAMAPI.artists(function (response, error) {
       if (error !== false) {
@@ -1205,13 +1168,6 @@ $(document).ready(function () {
       });
 
       $('#filelist').html(artists);
-      if (previousState && previousState.previousScroll) {
-        $('#filelist').scrollTop(previousState.previousScroll);
-      }
-  
-      if (previousState && previousState.previousSearch) {
-        $('#search_folders').val(previousState.previousSearch).trigger('change');
-      }
     });
   }
 
@@ -1219,15 +1175,12 @@ $(document).ready(function () {
     var artist = $(this).data('artist');
     programState.push({
       state: 'artist',
-      name: artist,
-      previousScroll: document.getElementById('filelist').scrollTop,
-      previousSearch: $('#search_folders').val()
-    });
-
+      name: artist
+    })
     getArtistsAlbums(artist)
   });
 
-  function getArtistsAlbums(artist, previousState) {
+  function getArtistsAlbums(artist) {
     resetPanel('Albums', 'scrollBoxHeight1');
     $('.directoryName').html('Artist: ' + artist);
     $('#filelist').html('<div class="loading-screen"><svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg"><circle class="spinner-path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle></svg></div>');
@@ -1252,15 +1205,6 @@ $(document).ready(function () {
       });
 
       $('#filelist').html(albums);
-
-      if (previousState && previousState.previousScroll) {
-        $('#filelist').scrollTop(previousState.previousScroll);
-      }
-  
-      if (previousState && previousState.previousSearch) {
-        $('#search_folders').val(previousState.previousSearch).trigger('change');
-      }
-
       // update lazy load plugin
       ll.update();
     });
@@ -1280,7 +1224,7 @@ $(document).ready(function () {
 
     programState = [{
       state: 'allRated'
-    }];
+    }]
 
     MSTREAMAPI.getRated(function (response, error) {
       if (error !== false) {
