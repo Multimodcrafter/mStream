@@ -577,16 +577,13 @@ exports.setup = function (mstream, program) {
   });
 
   mstream.post('/db/search', (req, res) => {
-    if (!req.body.search) {
-      res.status(500).json({ error: 'Bad input data' });
-    }
     // Get user inputs
-    const artists = req.body.noArtists === false ? [] : searchByX(req, 'artist');
-    const albums = req.body.noAlbums === false ? [] : searchByX(req, 'album');
-    const files = req.body.noFiles === false ? [] : searchByX(req, 'filepath');
-    const title = req.body.noTitles === false ? [] : searchByX(req, 'title', 'filepath');
+    const artists = searchByX(req, 'artist');
+    const albums = searchByX(req, 'album');
+    const files = searchByX(req, 'filepath');
+    // const title = searchByX(req, 'title', 'filepath');
 
-    res.json({artists, albums, files, title });
+    res.json({artists, albums, files });
   });
 
   function searchByX(req, searchCol, resCol) {
@@ -618,21 +615,9 @@ exports.setup = function (mstream, program) {
     const store = {};
     for (let row of results) {
       if (!store[row[resCol]]) {
-        let name = row[resCol];
-        let filepath = false;
-
-        if (searchCol === 'filepath') {
-          name = fe.join(row.vpath, row[resCol]).replace(/\\/g, '/');
-          filepath = fe.join(row.vpath, row[resCol]).replace(/\\/g, '/');
-        } else if (searchCol === 'title') {
-          name = `${row.artist} - ${row.title}`;
-          filepath = fe.join(row.vpath, row[resCol]).replace(/\\/g, '/');
-        }
-
         returnThis.push({
-          name: name,
-          album_art_file: row.aaFile ? row.aaFile : null,
-          filepath
+          name: row[resCol],
+          album_art_file: row.aaFile ? row.aaFile : null
         });
         store[row[resCol]] = true;
       }
