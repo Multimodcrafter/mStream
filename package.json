@@ -60,9 +60,6 @@
       ],
       "certificateSubjectName":"Iros Software LLC"
     },
-    "nsis": {
-      "oneClick": false
-    },
     "linux": {
       "files": [
         "frp/mstream-ddns-linux",
