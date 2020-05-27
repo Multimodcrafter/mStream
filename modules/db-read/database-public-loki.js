@@ -463,7 +463,8 @@ exports.setup = function (mstream, program) {
       res.status(500).json({ error: 'No files in DB' });
       return;
     };
-
+    // Ignore songs with star rating of 2 or under
+    let ignoreRating = false;
     // Ignore list
     let ignoreList = [];
     if (req.body.ignoreList && Array.isArray(req.body.ignoreList)) {
@@ -471,34 +472,33 @@ exports.setup = function (mstream, program) {
     }
 
     let ignorePercentage = .5;
-    if (req.body.ignorePercentage && typeof req.body.ignorePercentage === 'number' && req.body.ignorePercentage < 1 && !req.body.ignorePercentage < 0) {
+    if (req.body.ignorePercentage && typeof req.body.ignorePercentage === 'number' && req.body.ignorePercentage < 1 && req.body.ignorePercentage < 0) {
       ignorePercentage = req.body.ignorePercentage;
     }
 
+
     // // Preference for recently played or not played recently
+    // // Preference for starred songs
 
-    let orClause = { '$or': [] };
-    for (let vpath of req.user.vpaths) {
-      if (req.body.ignoreVPaths && typeof req.body.ignoreVPaths === 'object' && req.body.ignoreVPaths[vpath] === true) {
-        continue;
+    let orClause;
+    if (req.user.vpaths.length === 1 && ignoreRating == false) {
+      orClause = { 'vpath': { '$eq': req.user.vpaths[0] } }
+    } else {
+      orClause = { '$or': [] }
+      for (let vpath of req.user.vpaths) {
+        orClause['$or'].push({ 'vpath': { '$eq': vpath } })
       }
-      orClause['$or'].push({ 'vpath': { '$eq': vpath } });
-    }
 
-    let minRating = Number(req.body.minRating);
-    // Add Rating clause
-    if (minRating && typeof minRating === 'number' && minRating <= 10 && !minRating < 1) {
-      orClause = {'$and': [
-        orClause,
-        { 'rating': { '$gte': req.body.minRating } }
-      ]};
+      if (ignoreRating) {
+        // Add Rating clause
+      }
     }
 
     // Print list
     const results = fileCollection.find(orClause);
     const count = results.length;
     if (count === 0) {
-      res.status(444).json({ error: 'No songs that match criteria' });
+      res.status(444).json({ error: 'No songs that match criterai' });
       return;
     }
 
@@ -531,6 +531,7 @@ exports.setup = function (mstream, program) {
         "rating": randomSong.rating ? randomSong.rating : null
       }
     });
+
 
     ignoreList.push(randomNumber);
     returnThis.ignoreList = ignoreList;

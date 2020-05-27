@@ -62,13 +62,7 @@ var MSTREAMPLAYER = (function () {
   }
 
   mstreamModule.getRandomSong = function (callback) {
-    const params = {
-      ignoreList: autoDjIgnoreArray,
-      minRating: mstreamModule.minRating,
-      ignoreVPaths: mstreamModule.ignoreVPaths
-    };
-
-    MSTREAMAPI.getRandomSong(params, function (res, err) {
+    MSTREAMAPI.getRandomSong({ ignoreList: autoDjIgnoreArray }, function (res, err) {
       if (err) {
         callback(null, err);
         return;
@@ -84,7 +78,6 @@ var MSTREAMPLAYER = (function () {
     // Call mStream API for random song
     mstreamModule.getRandomSong(function (res, err) {
       if (err) {
-        mstreamModule.playerStats.autoDJ = false;
         iziToast.warning({
           title: 'Auto DJ Failed',
           message: err.responseJSON.error ? err.responseJSON.error  : '',
@@ -866,8 +859,6 @@ var MSTREAMPLAYER = (function () {
   // AutoDJ
   mstreamModule.playerStats.autoDJ = false;
   var autoDjIgnoreArray = [];
-  mstreamModule.ignoreVPaths = {};
-  mstreamModule.minRating = 0;
 
   mstreamModule.toggleAutoDJ = function () {
     mstreamModule.playerStats.autoDJ = !mstreamModule.playerStats.autoDJ;
