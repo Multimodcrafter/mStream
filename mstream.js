@@ -15,7 +15,14 @@ const ddns = require('./modules/ddns');
 const federation = require('./modules/federation');
 
 exports.serveIt = config => {
-  const program = defaults.setup(config);
+  let program;
+  try {
+    program = defaults.setup(config);
+  } catch(err) {
+    winston.error('Config Validation Failed');
+    console.log(err);
+    process.exit(1);
+  }
 
   // Logging
   if (program.writeLogs) {
