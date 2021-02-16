@@ -7,18 +7,17 @@ image-cache/*
 save/sync/*
 !save/sync/README.md
 
-ffmpeg/*
-!ffmpeg/README.md
+bin/ffmpeg/*
+!bin/ffmpeg/README.md
 
 save/*.json
+save/conf/*.json
+save/logs/*.json
 
 mstreamdb.lite
 mstream.db
 package-lock.json
 .DS_Store
-
-modules/ffmpeg/*
-!modules/ffmpeg/README.md
 .vscode/*
 
 test.json

@@ -1,9 +1,15 @@
 const fe = require('path');
 const loki = require('lokijs');
 const winston = require('winston');
-const sync = require('../sync');
+const vpath = require('../../src/util/vpath');
+// const taskQueue = require('../../src/db/task-queue');
 
-const userDataDbName = 'user-data.loki-v1.db'
+const userDataDbName = 'user-data.loki-v1.db';
+const filesDbName = 'files.loki-v2.db';
+
+exports.getFileDbName = () => {
+  return filesDbName;
+}
 
 // Loki Collections
 var filesDB;
@@ -22,9 +28,10 @@ const mapFunDefault = function(left, right) {
     track: left.track,
     title: left.title,
     year: left.year,
-    'album-art': left.aaFile,
+    aaFile: left.aaFile,
     filepath: left.filepath,
     rating: right.rating,
+    "replaygain-track-db": left.replaygainTrackDb,
     vpath: left.vpath
   };
 };
@@ -69,10 +76,9 @@ exports.loadDB = function () {
   loadDB();
 }
 
-exports.getNumberOfFiles = function (vpaths, callback) {
+exports.getNumberOfFiles = function (vpaths) {
   if (!fileCollection) {
-    callback(0);
-    return;
+    return 0;
   }
 
   let total = 0;
@@ -80,11 +86,12 @@ exports.getNumberOfFiles = function (vpaths, callback) {
     total += fileCollection.count({ 'vpath': vpath })
   }
 
-  callback(total);
+  return total;
 }
 
+// TPDP: fix this for server reboot
 exports.setup = function (mstream, program) {
-  filesDB = new loki(fe.join(program.storage.dbDirectory, program.filesDbName));
+  filesDB = new loki(fe.join(program.storage.dbDirectory, filesDbName));
   userDataDb = new loki(fe.join(program.storage.dbDirectory, userDataDbName));
 
   // Used to determine the user has a working login token
@@ -100,14 +107,15 @@ exports.setup = function (mstream, program) {
     res.json({
       vpaths: req.user.vpaths,
       playlists: getPlaylists(req.user.username),
-      federationId: sync.getId(),
+      federationId: null,
       transcode
     });
   });
 
   // Metadata lookup
   mstream.post('/db/metadata', (req, res) => {
-    const pathInfo = program.getVPathInfo(req.body.filepath, req.user);
+    // TODO: Validate access to shared filepaths
+    const pathInfo = vpath.getVPathInfo(req.body.filepath, req.user);
     if (!pathInfo) { return res.status(500).json({ error: 'Could not find file' }); }
 
     if (!fileCollection) {
@@ -137,7 +145,8 @@ exports.setup = function (mstream, program) {
         "title": result[0].title ? result[0].title : null,
         "year": result[0].year ? result[0].year : null,
         "album-art": result[0].aaFile ? result[0].aaFile : null,
-        "rating": result[0].rating ? result[0].rating : null
+        "rating": result[0].rating ? result[0].rating : null,
+        "replaygain-track-db": result[0]['replaygain-track-db'] ? result[0]['replaygain-track-db'] : null
       }
     });
   });
@@ -257,7 +266,7 @@ exports.setup = function (mstream, program) {
 
     for (let row of results) {
       // Look up metadata
-      const pathInfo = program.getVPathInfo(row.filepath, req.user);
+      const pathInfo = vpath.getVPathInfo(row.filepath, req.user);
       if (!pathInfo) { return res.status(500).json({ error: 'Could not find file' }); }
 
       let metadata = {};
@@ -279,7 +288,8 @@ exports.setup = function (mstream, program) {
             "title": result[0].title ? result[0].title : null,
             "year": result[0].year ? result[0].year : null,
             "album-art": result[0].aaFile ? result[0].aaFile : null,
-            "rating": result[0].rating ? result[0].rating : null
+            "rating": result[0].rating ? result[0].rating : null,
+            "replaygain-track-db": result[0]['replaygain-track-db'] ? result[0]['replaygain-track-db'] : null
           };
         }
       }
@@ -406,6 +416,9 @@ exports.setup = function (mstream, program) {
   });
 
   mstream.post('/db/album-songs', (req, res) => {
+    // TODO: Add scanning attributes to all DB functions
+    // This gives a signal to the UI 
+    // const songs = { songs: [], scanning: taskQueue.isScanning() };
     const songs = [];
     if (fileCollection) {
       let orClause;
@@ -448,7 +461,8 @@ exports.setup = function (mstream, program) {
             "year": row.year ? row.year : null,
             "album-art": row.aaFile ? row.aaFile : null,
             "filename": fe.basename(row.filepath),
-            "rating": row.rating ? row.rating : null
+            "rating": row.rating ? row.rating : null,
+            "replaygain-track-db": row['replaygain-track-db'] ? row['replaygain-track-db'] : null
           }
         });
       }
@@ -461,7 +475,7 @@ exports.setup = function (mstream, program) {
       return res.status(500).json({ error: 'Bad input data' });
     }
 
-    const pathInfo = program.getVPathInfo(req.body.filepath);
+    const pathInfo = vpath.getVPathInfo(req.body.filepath);
     if (!pathInfo) { return res.status(500).json({ error: 'Could not find file' }); }
 
     if (!userMetadataCollection || !fileCollection) {
@@ -567,7 +581,8 @@ exports.setup = function (mstream, program) {
         "title": randomSong.title ? randomSong.title : null,
         "year": randomSong.year ? randomSong.year : null,
         "album-art": randomSong.aaFile ? randomSong.aaFile : null,
-        "rating": randomSong.rating ? randomSong.rating : null
+        "rating": randomSong.rating ? randomSong.rating : null,
+        "replaygain-track-db": randomSong['replaygain-track-db'] ? randomSong['replaygain-track-db'] : null
       }
     });
 
@@ -666,9 +681,10 @@ exports.setup = function (mstream, program) {
         track: right.track,
         title: right.title,
         year: right.year,
-        'album-art': right.aaFile,
+        aaFile: right.aaFile,
         filepath: right.filepath,
         rating: left.rating,
+        "replaygain-track-db": right.replaygainTrackDb,
         vpath: right.vpath
       };
     };
@@ -700,7 +716,8 @@ exports.setup = function (mstream, program) {
           "year": row.year ? row.year : null,
           "album-art": row.aaFile ? row.aaFile : null,
           "filename": fe.basename(row.filepath),
-          "rating": row.rating ? row.rating : null
+          "rating": row.rating ? row.rating : null,
+          "replaygain-track-db": row['replaygain-track-db'] ? row['replaygain-track-db'] : null
         }
       });
     }
@@ -752,7 +769,8 @@ exports.setup = function (mstream, program) {
           "year": row.year ? row.year : null,
           "album-art": row.aaFile ? row.aaFile : null,
           "filename": fe.basename(row.filepath),
-          "rating": row.rating ? row.rating : null
+          "rating": row.rating ? row.rating : null,
+          "replaygain-track": row.replaygainTrack ? row.replaygainTrack : null
         }
       });
     }

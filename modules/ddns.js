@@ -4,30 +4,31 @@ const winston = require('winston');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const killQueue = require('../src/state/kill-list');
 const eol = os.EOL;
 
 var spawnedTunnel;
 const apiEndpoint = 'https://api.mstream.io';
 const platform = os.platform();
 const osMap = {
-  "win32": "mstream-ddns-win.exe",
-  "darwin": "mstream-ddns-osx",
-  "linux": "mstream-ddns-linux",
-  "android": "mstream-rpn-android64"
+  "win32": "rpn-win.exe",
+  "darwin": "rpn-osx",
+  "linux": "rpn-linux",
+  "android": "rpn-android64"
 };
 
-exports.setup = function (program) {
-  program.killThese.push(
-    () => {
-      // kill all workers
-      if(spawnedTunnel) {
-        spawnedTunnel.stdin.pause();
-        spawnedTunnel.kill();
-      }  
-    }
-  );
+killQueue.addToKillQueue(
+  () => {
+    // kill all workers
+    if(spawnedTunnel) {
+      spawnedTunnel.stdin.pause();
+      spawnedTunnel.kill();
+    }  
+  }
+);
 
-  if(!program.ddns || !program.ddns.email || !program.ddns.password) {
+exports.setup = async (program) => {
+  if(spawnedTunnel || !program.ddns || !program.ddns.email || !program.ddns.password) {
     return;
   }
 
@@ -84,9 +85,9 @@ function bootReverseProxy(program, info) {
   }
 
   try {
-    spawnedTunnel = spawn(path.join(__dirname, `../frp/${osMap[platform]}`), ['-c', program.ddns.iniFile], {
+    spawnedTunnel = spawn(path.join(__dirname, `../bin/rpn/${osMap[platform]}`), ['-c', program.ddns.iniFile], {
       // shell: true,
-      // cwd: path.join(__dirname, `../frp/`),
+      // cwd: path.join(__dirname, `../bin/rpn`),
     });
 
     spawnedTunnel.stdout.on('data', (data) => {

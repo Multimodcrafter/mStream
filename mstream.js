@@ -1,34 +1,45 @@
-const logger = require('./modules/logger');
-logger.init();
 const winston = require('winston');
 const express = require('express');
-const mstream = express();
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
-const dbModule = require('./modules/db-management/database-master.js');
-const jukebox = require('./modules/jukebox.js');
-const sync = require('./modules/sync.js');
-const sharedModule = require('./modules/shared.js');
-const defaults = require('./modules/defaults.js');
+const dbApi = require('./src/api/db');
+const authApi = require('./src/api/auth');
+const fileExplorerApi = require('./src/api/file-explorer');
+const downloadApi = require('./src/api/download');
+const adminApi = require('./src/api/admin')
+const remoteApi = require('./src/api/remote');
+const sharedApi = require('./src/api/shared');
 const ddns = require('./modules/ddns');
-const federation = require('./modules/federation');
+const config = require('./src/state/config');
+const logger = require('./src/logger');
+const scrobbler = require('./modules/scrobbler');
+const transode = require('./src/api/transcode');
 
-exports.serveIt = config => {
-  const program = defaults.setup(config);
+let mstream;
+let server;
+
+exports.serveIt = async configFile => {
+  mstream = express();
+
+  try {
+    await config.setup(configFile);
+  } catch (err) {
+    winston.error('Failed to validate config file', { stack: err });
+    process.exit(1);
+  }
 
   // Logging
-  if (program.writeLogs) {
-    logger.addFileLogger(program.storage.logsDirectory);
+  if (config.program.writeLogs) {
+    logger.addFileLogger(config.program.storage.logsDirectory);
   }
 
   // Set server
-  var server;
-  if (program.ssl && program.ssl.cert && program.ssl.key) {
+  if (config.program.ssl && config.program.ssl.cert && config.program.ssl.key) {
     try {
       server = require('https').createServer({
-        key: fs.readFileSync(program.ssl.key),
-        cert: fs.readFileSync(program.ssl.cert)
+        key: fs.readFileSync(config.program.ssl.key),
+        cert: fs.readFileSync(config.program.ssl.cert)
       });
     } catch (error) {
       winston.error('FAILED TO CREATE HTTPS SERVER');
@@ -40,8 +51,8 @@ exports.serveIt = config => {
   }
 
   // Magic Middleware Things
-  mstream.use(bodyParser.json()); // support json encoded bodies
-  mstream.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
+  mstream.use(bodyParser.json());
+  mstream.use(bodyParser.urlencoded({ extended: true }));
   mstream.use((req, res, next) => { // CORS
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -49,99 +60,61 @@ exports.serveIt = config => {
   });
 
   // Give access to public folder
-  mstream.use('/public', express.static( program.webAppDirectory ));
-  // Serve the webapp
-  mstream.get('/', (req, res) => {
-    res.sendFile('mstream.html', { root: program.webAppDirectory });
-  });
-  mstream.get('/j/*', (req, res) => {
-    res.sendFile( 'mstream.html', { root: program.webAppDirectory });
-  });
-  // It Really Whips The Llama's Ass
-  mstream.get('/winamp', (req, res) => {
-    res.sendFile('winamp.html', { root: program.webAppDirectory });
-  });
-  // Serve Shared Page
-  mstream.all('/shared/playlist/*', (req, res) => {
-    res.sendFile( 'shared.html', { root: program.webAppDirectory });
-  });
-  // Serve Jukebox Page
-  mstream.all('/remote', (req, res) => {
-    res.sendFile('remote.html', { root: program.webAppDirectory });
-  });
+  mstream.use('/', express.static(config.program.webAppDirectory));
 
-  // JukeBox
-  jukebox.setup2(mstream, server, program);
-  // Shared
-  sharedModule.setupBeforeSecurity(mstream, program);
+  // Public APIs
+  remoteApi.setupBeforeAuth(mstream, server);
+  await sharedApi.setupBeforeSecurity(mstream);
 
-  // Login functionality
-  program.auth = false;
-  if (program.users && Object.keys(program.users).length !== 0) {
-    require('./modules/login.js').setup(mstream, program, express);
-    program.auth = true;
-  } else {
-    program.users = {
-      "mstream-user": {
-        vpaths: [],
-        username: "mstream-user",
-        admin: true
-      }
-    };
+  // Everything below this line requires authentication
+  authApi.setup(mstream);
+ 
+  adminApi.setup(mstream);
+  dbApi.setup(mstream);
+  downloadApi.setup(mstream);
+  fileExplorerApi.setup(mstream);
+  require('./modules/db-read/database-public-loki.js').setup(mstream, config.program);
+  transode.setup(mstream);
+  scrobbler.setup(mstream, config.program);
+  remoteApi.setupAfterAuth(mstream, server);
+  sharedApi.setupAfterSecurity(mstream);
 
-    if (program['lastfm-user'] && program['lastfm-password']) {
-      program.users['mstream-user']['lastfm-user'] = program['lastfm-user'];
-      program.users['mstream-user']['lastfm-password'] = program['lastfm-password'];
-    }
-
-    // Fill in user vpaths
-    Object.keys(program.folders).forEach( key => {
-      program.users['mstream-user'].vpaths.push(key);
-    });
-
-    // Fill in the necessary middleware
-    mstream.use((req, res, next) => {
-      req.user = program.users['mstream-user'];
-      next();
-    });
-  }
-
-  // Album art endpoint
-  mstream.use('/album-art', express.static(program.storage.albumArtDirectory));
-  // Download Files API
-  require('./modules/download.js').setup(mstream, program);
-  // File Explorer API
-  require('./modules/file-explorer.js').setup(mstream, program);
-  // Load database
-  dbModule.setup(mstream, program);
-  if (program.federation && program.federation.folder) {
-    federation.setup(mstream, program);
-    sync.setup(program);
-  }
-  // Transcoder
-  if (program.transcode && program.transcode.enabled === true) {
-    require("./modules/ffmpeg.js").setup(mstream, program);
-  }
-  // Scrobbler
-  require('./modules/scrobbler.js').setup(mstream, program);
-  // Finish setting up the jukebox and shared
-  jukebox.setup(mstream, server, program);
-  sharedModule.setupAfterSecurity(mstream, program);
+  // album art folder
+  mstream.use('/album-art', express.static(config.program.storage.albumArtDirectory));
 
   // TODO: Add middleware to determine if user has access to the exact file
-  // Setup all folders with express static
-  Object.keys(program.folders).forEach( key => {
-    mstream.use('/media/' + key + '/', express.static(program.folders[key].root));
+  Object.keys(config.program.folders).forEach( key => {
+    mstream.use('/media/' + key + '/', express.static(config.program.folders[key].root));
   });
+
+  // Versioned APIs
+  mstream.get('/api/', (req, res) => res.json({ "version": "0.1.0", "supportedVersions": ["1"] }));
+  mstream.get('/api/v1', (req, res) => res.json({ "version": "0.1.0" }));
 
   // Start the server!
   server.on('request', mstream);
-  server.listen(program.port, () => {
-    const protocol = program.ssl && program.ssl.cert && program.ssl.key ? 'https' : 'http';
-    winston.info(`Access mStream locally: ${protocol}://localhost:${program.port}`);
-    winston.info(`Try the WinAmp Demo: ${protocol}://localhost:${program.port}/winamp`);
+  server.listen(config.program.port, config.program.address, () => {
+    const protocol = config.program.ssl && config.program.ssl.cert && config.program.ssl.key ? 'https' : 'http';
+    winston.info(`Access mStream locally: ${protocol}://${config.program.address}:${config.program.port}`);
 
-    dbModule.runAfterBoot(program);
-    ddns.setup(program);
+    require('./src/db/task-queue').runAfterBoot();
+    ddns.setup(config.program);
   });
 };
+
+exports.reboot = async () => {
+  try {
+    winston.info('Rebooting Server');
+    logger.reset();
+    scrobbler.reset();
+    transode.reset();
+  
+    // Close the server
+    server.close(() => {
+      this.serveIt(config.configFile);
+    });
+  }catch (err) {
+    winston.error('Reboot Failed', { stack: err });
+    process.exit(1);
+  }
+}

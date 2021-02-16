@@ -1,11 +1,3 @@
-# Use The Wizard
-
-Editing JSON by hand is tedious. All the json config options can be edited by using the cli wizard.  To use it:
-
-```
-mstream --wizard /path/to/config.json
-```
-
 # JSON config
 
 Using a JSON config with mStream allows for more advanced configurations.  This example contains all configurable params for reference purposes.  
@@ -35,11 +27,13 @@ Using a JSON config with mStream allows for more advanced configurations.  This 
   },
   "users": {
     "paul": {
-      "password":"p@ssword",
+      "password": "bKD6We4x40qcA2sDqVV0EHz1yiu5XDhnFlL6+JRrvMw=",
+      "salt": "PMsisJwG3F3m7atHtny40Q==",
       "vpaths": ["blues", "rock"]
     },
     "james": {
-      "password": "qwerty",
+     "password": "qBg8vlOcqrhFpgVDd/2jVHgHamvb6xspjhxrpl5m3Is=",
+      "salt": "6cm1jPJ1Xl/ocLbaNijpJg==",
       "vpaths": "rock",
       "lastfm-user": "username",
       "lastfm-password": "password"
@@ -88,6 +82,8 @@ If there is no users object, the login system will not be enabled and anyone wil
 
 A basic user example.  
 
+Note that the hashed password and salt can be generated automatically by creating a new user via the admin ui.
+
 ```json
 {
   "folders": {
@@ -95,7 +91,8 @@ A basic user example.
   },
   "users": {
     "paul": {
-      "password":"p@ssword",
+      "password": "bKD6We4x40qcA2sDqVV0EHz1yiu5XDhnFlL6+JRrvMw=",
+      "salt": "PMsisJwG3F3m7atHtny40Q==",
       "vpaths": "media"
     }
   }
@@ -164,7 +161,7 @@ Sets the secret key used for the login system.  If this is not set, mStream will
 
 ## Scan Options
 
-* `skipImg`: (boolean) whether to skip scanning for album art.  Speeds up the scan time
+* `skipImg`: (boolean) whether to skip scanning for album art.  Speeds up the scan time and saves disk space
 * `bootScanDelay`: delay between server boot and first file scan (in seconds)
 * `scanInterval`: The interval which controls how often file system will be scanned for changes (in hours). Set to 0 if you want to disable scanning
 * `saveInterval`: interval which to refresh the DB on scan.  Defaults to 250.  Can be set to a higher number for large collections to avoid hogging the CPU thread

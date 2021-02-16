@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const parser = require('fast-xml-parser');
 const axios = require('axios');
 const https = require('https');
+const killQueue = require('../src/state/kill-list');
 
 var spawnedProcess;
 const platform = os.platform();
@@ -25,6 +26,16 @@ let xmlObj;
 let syncApiAddress;
 let syncApiKey;
 
+killQueue.addToKillQueue(
+  () => {
+    // kill all workers
+    if(spawnedProcess) {
+      spawnedProcess.stdin.pause();
+      spawnedProcess.kill();
+    }  
+  }
+);
+
 exports.getXml = function() {
   return xmlObj;
 }
@@ -37,24 +48,15 @@ exports.getPathId = function(path) {
   return cacheObj[path];
 }
 
+// TODO: change this for server reboot
 exports.setup = function (program) {
   syncConfigPath = program.storage.syncConfigDirectory;
-
-  program.killThese.push(
-    () => {
-      // kill all workers
-      if(spawnedProcess) {
-        spawnedProcess.stdin.pause();
-        spawnedProcess.kill();
-      }  
-    }
-  );
 
   setupNew(program);
 }
 
 function setupNew(program) {
-  const newProcess = spawn(path.join(__dirname, `../sync/${osMap[platform]}`), [`--generate=${program.storage.syncConfigDirectory}`], {});
+  const newProcess = spawn(path.join(__dirname, `../bin/syncthing/${osMap[platform]}`), [`--generate=${program.storage.syncConfigDirectory}`], {});
 
   newProcess.stdout.on('data', (data) => {
     winston.info(`sync: ${data}`);
@@ -74,7 +76,7 @@ function setupNew(program) {
 }
 
 function getId(program) {
-  const newProcess = spawn(path.join(__dirname, `../sync/${osMap[platform]}`), ['--home', program.storage.syncConfigDirectory, `--device-id`], {});
+  const newProcess = spawn(path.join(__dirname, `../bin/syncthing/${osMap[platform]}`), ['--home', program.storage.syncConfigDirectory, `--device-id`], {});
 
   newProcess.stdout.on('data', (data) => {
     myId = `${data}`.trim();
@@ -349,7 +351,7 @@ function bootProgram(program) {
   }
 
   try {
-    spawnedProcess = spawn(path.join(__dirname, `../sync/${osMap[platform]}`), ['--home', program.storage.syncConfigDirectory, '--no-browser'], {});
+    spawnedProcess = spawn(path.join(__dirname, `../bin/syncthing/${osMap[platform]}`), ['--home', program.storage.syncConfigDirectory, '--no-browser'], {});
 
     spawnedProcess.stdout.on('data', (data) => {
       winston.info(`sync: ${data}`);
